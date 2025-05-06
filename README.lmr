@@ -1,17 +1,20 @@
 # SNEK - Python Dependency Manager
 
-``snek`` is a minimalistic and hackable dependency manager that allows to
+`snek` is a minimalistic and hackable dependency manager that allows to
 specify targets in spirit similar to Makefiles, but directly within python.
+
 
 ## Use Cases
 
 In data science, we often build pipelines with lots of configuration options.
 Yet, most pipelines can be broken down into small functions that compute
 artifacts, that are then later recombined in particular manners. Essentially,
-such pipelines can be described as a computational graph. 
+such pipelines can be described as a computational graph, and intermediate
+results might have to be cached to avoid expensive recomputation.
 
-
-First run of demo.py with caching enabled
+As an example of snek's behavior, let's have a look at the first run of
+[demo.py]@(demo/demo.py) with caching enabled, meaning it'll store intermediate
+results, and verbose output:
 
 :: sh
 	$ ./demo.py 
@@ -25,7 +28,8 @@ First run of demo.py with caching enabled
 	BResult(value='Result B following Result A (101) C Result')
 
 
-Subsequent runs of demo.py with caching enabled
+Subsequent runs of demo.py with caching enabled and verbose output will then
+only look as follows
 
 :: sh
 	$ ./demo.py
@@ -34,4 +38,178 @@ Subsequent runs of demo.py with caching enabled
 	Resolved: B 2b5f5080f8750e1e6b721c46772c271aeba79a16
 	Loaded B from cache
 	BResult(value='Result B following Result A (101) C Result')
+
+Meaning instead of computing all intermediate artifacts required to generate B
+(which are A and C in the example presented in [demo.py]@(demo.py)), it'll load
+B from some cache. You can find more details about the `cahce` and what snek
+really provides below.
+
+
+## Usage
+
+Let's dive right in:
+
+:: python
+	from snek import DependencyManager
+
+	dm = DependencyManager()
+
+	@dm.target(cacheable=False)
+	def awesomesauce():
+		print("Hello, World!")
+
+	if __name__ == "__main__":
+		dm.make('awesomesauce')
+
+The above code illustrates how to use snek to make a particular target called
+`asesomsauce`. You can find this demo in file [demo2.py]@(demo/demo2.py)
+
+Of course this might not be very exciting, but once we introduce other targets
+that, themselves, need some targets, things get more interesting:
+
+:: python
+	from snek import DependencyManager
+
+	dm = DependencyManager()
+
+	@dm.target(cacheable=False)
+	def awesomesauce():
+		return "Hello, World!"
+
+	@dm.target(requires=['awesomesauce'], cacheable=False)
+	def printstr(value):
+		print(value)
+
+	if __name__ == "__main__":
+		dm.make('printstr')
+
+Now we call `dm.make` on the printstr function. awesomesauce itself doesn't
+directly print any more, but returns a string. This string is the result of the
+target `awesomesauce`. Then, we define a target `printstr`, which requires
+as input `awesomesauce`, takes it as some value, and then actually prints it.
+The above code can be found in [demo3.py]@(demo/demo3.py).
+
+You probably already see where this is going, but maybe another, longer, example
+helps make things clear:
+
+:: python
+	#!/usr/bin/env python
+
+	from snek import DependencyManager
+	from dataclasses import dataclass
+
+	dm = DependencyManager()
+
+	@dataclass
+	class AResult:
+		value: str
+
+	@dataclass
+	class BResult:
+		value: str
+
+	@dataclass
+	class CResult:
+		value: str
+
+	@dm.target(provides='A', cacheable=False)
+	def compute_A() -> AResult:
+		print("called compute_A()")
+		return AResult("Result of A()")
+
+	@dm.target(provides='C', cacheable=False)
+	def compute_C() -> CResult:
+		print("called compute_C()")
+		return CResult("C Result")
+
+	@dm.target(provides='B', requires=['A', 'C'], cacheable=False)
+	def compute_B(A, C) -> BResult:
+		print("called compute_B()")
+		return BResult("Result B following " + A.value + " " + C.value)
+
+	if __name__ == "__main__":
+		result = dm.make('B')
+		print(result)
+
+
+In the example above, we define three different targets A, B, and C. While A and
+C can stand independently, B requires A and B. Of course, this can be also
+expressed with simply chaining some functions, but often -- especially in large
+data science pipelines -- this gets cumbersome and its easier to thing in terms
+of artifacts that get generated, and which are the input for other functions.
+Also maybe some configuration parameters for a pipeline influence how
+intermediate artifacts are generated or not. The code for the example above is
+located in file [demo4.py]@(demo/demo4.py).
+
+
+## Cache
+
+At this point, you might wonder what the `cacheable=False` argument to
+`dm.target` is. Very often in data science pipelines, we create intermediate
+artifacts which are expensive to compute - let this be time or other resources.
+It'd be nice to simply cache them, and instead of re-computing them, use their
+cached variants.
+
+This is where the `cacheable` flag comes in. By default, all targets in snek's
+`DependencyManager` are assumed to be cacheable (because this is what I built
+this little utility for). For this to work, we need to provide some information
+to snek so that it knows how to serialize and deserialize objects. In fact, snek
+doesn't really care how you want to cache the intermediate objects, it simply
+tells you when it happens.
+
+By default, snek calls function `serialize` to cache an (intermediate) object --
+or more precisely the result of a target -- and `deserialize` to load it from
+some cache on the disk. Note that on top of that, snek's `DependencyManager`
+also uses an in-memory cache to avoid loading things that were already
+deserialized. Anyway, let's get back to the caching mechanism, illustrated with
+the following example:
+
+:: python
+
+	class Serializable:
+		def serialize(self, name: str, unique_id: str):
+			fpath = Path('cache') / (name + "_" + unique_id + ".npz")
+			dataclass_to_npz(self, fpath)
+
+		@classmethod
+		def deserialize(cls, name: str, unique_id: str):
+			fpath = Path('cache') / (name + "_" + unique_id + ".npz")
+			if fpath.exists():
+				return npz_to_dataclass(cls, fpath)
+			return None
+
+
+	@dataclass
+	class AResult(Serializable):
+		value: str
+
+In the code above, which is part of [demo.py]@(demo/demo.py), we first define
+some generic class that has a function `serialize` and a class function
+`deserialize`. snek's `DependencyManager` will look for these two methods for
+any result of a target. The type of the target will be inferred from type hints,
+but can also be specified as an argument to `dm.target`. Internally, snek will
+then try to call these functions to load/store the result of a target. In the
+example above, I made use of two helper functions `dataclass_to_npz` and
+`npz_to_dataclass` that I developed to turn, as their names imply, simple
+dataclasses into npz files or the other way around to avoid using `pickle`. If
+you want to read more about these functions and how they work, have a look at
+[dcutils]@(demo/dcutils.py).
+
+
+### Unique IDs
+
+One of the things you might notice above is the usage of a `unique_id`. snek
+*knows* that artifacts that are generated in any data science pipeline usually
+depend on some configuration options. 
+
+
+
+## Contributing
+Contributions are welcome!
+If you have suggestions, bug reports, or want to contribute code, please open an
+issue or submit a pull request on GitHub.
+
+
+## License
+`snek` is licensed under the MIT License. See the [LICENSE]@(LICENSE) file for details.
 

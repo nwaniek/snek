@@ -194,7 +194,7 @@ class DependencyManager:
         return result
 
 
-    def make(self, name, verbose: bool = True, use_cache: bool = False):
+    def make(self, name, verbose: bool = False, use_cache: bool = True):
         node   = self.build_graph(name, verbose)
         result = self.resolve(node, use_cache, verbose)
         return result

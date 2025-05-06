@@ -53,7 +53,6 @@ class AResult(Serializable):
 class BResult(Serializable):
     value: str
 
-
 @dataclass
 class CResult(Serializable):
     value: str
