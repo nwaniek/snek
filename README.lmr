@@ -1,0 +1,11 @@
+# SNEK - Python Dependency Manager
+
+``snek`` is a minimalistic and hackable dependency manager that allows to
+specify targets in spirit similar to Makefiles, but directly within python.
+
+## Use Cases
+
+In data science, we often build pipelines with lots of configuration options.
+Yet, most pipelines can be broken down into small functions that compute
+artifacts, that are then later recombined in particular manners. Essentially,
+such pipelines can be described as a computational graph. 
