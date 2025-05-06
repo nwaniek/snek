@@ -9,3 +9,29 @@ In data science, we often build pipelines with lots of configuration options.
 Yet, most pipelines can be broken down into small functions that compute
 artifacts, that are then later recombined in particular manners. Essentially,
 such pipelines can be described as a computational graph. 
+
+
+First run of demo.py with caching enabled
+
+:: sh
+	$ ./demo.py 
+	Resolved: A cb890cae7cdc934e705dd064dad9e30843267181
+	Resolved: C d9d7fadf0eb3bde7bbe4763033f25432527ef81d
+	Resolved: B 2b5f5080f8750e1e6b721c46772c271aeba79a16
+	called compute_A()
+	Reading file demoinput.txt
+	called compute_C()
+	called compute_B()
+	BResult(value='Result B following Result A (101) C Result')
+
+
+Subsequent runs of demo.py with caching enabled
+
+:: sh
+	$ ./demo.py
+	Resolved: A cb890cae7cdc934e705dd064dad9e30843267181
+	Resolved: C d9d7fadf0eb3bde7bbe4763033f25432527ef81d
+	Resolved: B 2b5f5080f8750e1e6b721c46772c271aeba79a16
+	Loaded B from cache
+	BResult(value='Result B following Result A (101) C Result')
+

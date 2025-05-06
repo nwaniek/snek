@@ -154,13 +154,15 @@ class DependencyManager:
 
     def resolve(self, node: Node,  use_cache: bool = False, verbose: bool = False):
         if node.unique_id in self.cache:
+            if verbose:
+                print(f"Using cached {node.name}")
             return self.cache[node.unique_id]
 
         if use_cache and node.cacheable and node.deserializer:
-            if verbose:
-                print(f"Loading {node.name} from cache")
             result = node.deserializer(node.name, node.unique_id)
             if result is not None:
+                if verbose:
+                    print(f"Loaded {node.name} from cache")
                 self.cache[node.unique_id] = result
                 return result
 

@@ -1,9 +1,13 @@
 #!/usr/bin/env python
 
+# be able to run this without actually installing snek
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from snek import DependencyManager
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from dcutils import dataclass_to_npz, npz_to_dataclass
-from snek import DependencyManager
 
 
 @dataclass
@@ -59,18 +63,18 @@ def register_pipeline(dm: DependencyManager, config: Configuration):
 
     @dm.target(provides='A', requires=['@demoinput.txt'], params=asdict(config.config_a))
     def compute_A(fpath, **kwargs) -> AResult:
-        print("A()")
+        print("called compute_A()")
         print(f"Reading file {fpath}")
         return AResult("Result A (" + str(kwargs['option_a_1']) + ")")
 
     @dm.target(provides='C', params=None)
     def compute_C():
-        print("C()")
+        print("called compute_C()")
         return CResult("C Result")
 
     @dm.target(provides='B', requires=['A', 'C'], params={'config_b': config.config_b})
     def compute_B(A, C, config_b) -> BResult:
-        print("B()")
+        print("called compute_B()")
         return BResult("Result B following " + A.value + " " + C.value)
 
 
