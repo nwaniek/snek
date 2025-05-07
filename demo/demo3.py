@@ -12,9 +12,9 @@ dm = DependencyManager()
 def awesomesauce():
     return "Hello, World!"
 
-@dm.target(requires=['awesomesauce'], cacheable=False)
-def printstr(value):
-    print(value)
+@dm.target(cacheable=False)
+def printstr(awesomesauce):
+    print(awesomesauce)
 
 if __name__ == "__main__":
     dm.make('printstr')

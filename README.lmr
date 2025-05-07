@@ -44,7 +44,7 @@ only look as follows
 
 Meaning instead of computing all intermediate artifacts required to generate B
 (which are A and C in the example presented in [demo.py]@(demo.py)), it'll load
-B from some cache. You can find more details about the `cahce` and what snek
+B from some cache. You can find more details about the `cache` and what snek
 really provides below.
 
 
@@ -79,20 +79,24 @@ that, themselves, need some targets, things get more interesting:
 	def awesomesauce():
 		return "Hello, World!"
 
-	@dm.target(requires=['awesomesauce'], cacheable=False)
-	def printstr(value):
-		print(value)
+	@dm.target(cacheable=False)
+	def printstr(awesomesauce):
+		print(awesomesauce)
 
 	if __name__ == "__main__":
 		dm.make('printstr')
 
+
 Now we call `dm.make` on the printstr function. awesomesauce itself doesn't
 directly print any more, but returns a string. This string is the result of the
 target `awesomesauce`. Then, we define a target `printstr`, which requires
-as input `awesomesauce`, takes it as some value, and then actually prints it.
+as input `awesomesauce` -- inferred by the name of the argument to `printstr` --
+and then actually prints it.
+
 The above code can be found in [demo3.py]@(demo/demo3.py). `snek` will figure
 out which function to call by itself if you don't specify a different target
-name for what a function provides.
+name for what a function provides. Examples of changing the target name via the
+`provides` argument to `dm.target` can be found further below.
 
 You probably already see where this is going, but maybe another, longer, example
 helps make things clear and introduces changing the name of what a function
