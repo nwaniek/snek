@@ -29,10 +29,9 @@ from dataclasses import dataclass
 from functools import wraps
 import inspect
 import hashlib
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from threading import Lock
+from concurrent.futures import ThreadPoolExecutor, Future
 
-__version__ = '0.1.1'
+__version__ = '0.1.2'
 
 try:
     import orjson
@@ -73,20 +72,15 @@ class Node:
     is_file      : bool
 
 
-def toposort(node: Node) -> List[Node]:
-   visited = set()
-   ordered = []
-
-   def visit(n: Node):
-       if n.unique_id in visited:
-           return
-       visited.add(n.unique_id)
-       for dep in n.dependencies:
-           visit(dep)
-       ordered.append(n)
-
-   visit(node)
-   return ordered
+def _run_task(func, args, params):
+    sig         = inspect.signature(func)
+    param_names = list(sig.parameters)
+    bound_args  = {}
+    for i, arg in enumerate(args):
+        if i < len(param_names):
+            bound_args[param_names[i]] = arg
+    bound_args.update(params)
+    return func(**bound_args)
 
 
 def resolve_file_dep(name: str) -> Path:
@@ -193,7 +187,7 @@ class DependencyManager:
         return Node(name, unique_id, cacheable, dep_nodes, params, func, return_type, serializer, deserializer, cache_path, False)
 
 
-    def resolve(self, node: Node,  use_cache: bool = False, verbose: bool = False) -> Any:
+    def _retrieve_from_cache(self, node, use_cache:bool, verbose:bool):
         if node.unique_id in self.cache:
             if verbose:
                 print(f"Using cached {node.name}")
@@ -207,6 +201,14 @@ class DependencyManager:
                 self.cache[node.unique_id] = result
                 return result
 
+        return None
+
+
+    def resolve(self, node: Node,  use_cache: bool = False, verbose: bool = False) -> Any:
+        result = self._retrieve_from_cache(node, use_cache, verbose)
+        if result:
+            return result
+
         resolved_deps = []
         for dep in node.dependencies:
             if dep.is_file:
@@ -217,17 +219,7 @@ class DependencyManager:
         if not node.func:
             raise RuntimeError(f"No Callable for node {node.name}")
 
-        args        = resolved_deps
-        params      = node.params.copy()
-        sig         = inspect.signature(node.func)
-        param_names = list(sig.parameters)
-        bound_args  = {}
-        for i, arg in enumerate(args):
-            if i < len(param_names):
-                bound_args[param_names[i]] = arg
-
-        bound_args.update(params)
-        result = node.func(**bound_args)
+        result = _run_task(node.func, resolved_deps, node.params.copy())
         self.cache[node.unique_id] = result
         if use_cache and node.cacheable and node.serializer:
             node.serializer(result, node.name, node.unique_id)
@@ -235,111 +227,88 @@ class DependencyManager:
         return result
 
 
-    def resolve_parallel(self, node: Node):
-        ordered_nodes = toposort(node)
-        futures = {}
+    def find_dirty_nodes_toposorted(self, node: Node, use_cache: bool) -> list[Node]:
+        visited      = set()
+        topo_sorted  = []
+        dirty_cache  = {}
 
-        # for n in ordered_nodes:
-        #     deps = []
-        #     if de.is_file:
+        def dfs(n: Node) -> bool:
+            if n.unique_id in visited:
+                return dirty_cache[n.unique_id]
+            visited.add(n.unique_id)
 
+            if n.is_file:
+                dirty_cache[n.unique_id] = False
+                return False
 
-        #     deps = [futures[dep.unique_id] for dep in n.dependencies if not d.is_file ]
+            if n.unique_id in self.cache:
+                dirty_cache[n.unique_id] = False
+                return False
 
+            if use_cache and n.cacheable and n.deserializer:
+                obj = n.deserializer(n.name, n.unique_id)
+                if obj is not None:
+                    self.cache[n.unique_id] = obj
+                    dirty_cache[n.unique_id] = False
+                    return False
 
-    #def resolve_parallel(self, node: Node, use_cache: bool = False):
-    #    ordered_nodes = toposort(node)
-    #    futures = {}
-    #    resolved = {}
-    #    lock = Lock()
+            # check dependencies recursively
+            any_dep_dirty = False
+            for dep in n.dependencies:
+                if dfs(dep):
+                    any_dep_dirty = True
 
-    #    print("order: ")
-    #    for n in ordered_nodes:
-    #        print(n.name)
+            # This node is dirty either because children are or it itself needs
+            # compute (it's not in the memory cache and deserialization didn't
+            # succeed either)
+            is_dirty = True if (n.func is not None) else False
+            is_dirty = is_dirty and (any_dep_dirty or True)
+            if is_dirty:
+                topo_sorted.append(n)
 
-    #    print("---")
+            dirty_cache[n.unique_id] = is_dirty
+            return is_dirty
 
-    #    def resolve_node(n):
-    #        # check if this is already in cache
-    #        with lock:
-    #            if n.unique_id in self.cache:
-    #                return resolved[n.unique_id]
-
-    #        if n.is_file:
-    #            resolved[n.unique_id] = n.fpath
-    #            return n.fpath
-
-    #        args = []
-    #        for dep in n.dependencies:
-    #            with lock:
-    #                args.append(resolved[dep.unique_id] if not dep.is_file else dep.fpath)
-
-    #        print(n.name, "args", args)
-
-    #        params      = n.params.copy()
-    #        sig         = inspect.signature(n.func)
-    #        param_names = list(sig.parameters)
-    #        bound_args  = {}
-    #        for i, arg in enumerate(args):
-    #            if i < len(param_names):
-    #                bound_args[param_names[i]] = arg
-    #        bound_args.update(params)
-
-    #        print(n.name, "bound_args", bound_args)
-
-    #        result = n.func(**bound_args)
-    #        print(result)
-
-    #        # if use_cache and n.cacheable and n.serializer:
-    #        #     n.serializer(result, n.name, n.unique_id)
-
-    #        with lock:
-    #            resolved[n.unique_id] = result
-
-    #        return result
-
-    #    with ThreadPoolExecutor() as executor:
-    #        for n in ordered_nodes:
-    #            futures[n.unique_id] = executor.submit(resolve_node, n)
-
-    #        for unique_id, future in futures.items():
-    #            self.cache[unique_id] = future.result()
-    #            # print(unique_id, future)
+        dfs(node)
+        return topo_sorted
 
 
-    #    # def resolve_node(n):
-    #    #     # Check cache
-    #    #     with lock:
-    #    #         if n.unique_id in resolved:
-    #    #             return resolved[n.unique_id]
+    def resolve_parallel(self, node: Node, use_cache: bool = True, verbose: bool = False):
+        dirty_nodes = self.find_dirty_nodes_toposorted(node, use_cache)
+        if not dirty_nodes:
+            obj = self._retrieve_from_cache(node, use_cache, verbose)
+            if obj:
+                return obj
+            dirty_nodes.append(node)
+        dirty_ids = {n.unique_id for n in dirty_nodes}
 
-    #    #     args = []
-    #    #     for dep in n.dependencies:
-    #    #         with lock:
-    #    #             args.append(resolved[dep.unique_id] if not dep.is_file else dep.fpath)
+        def make_wrapper(n, resolved_deps):
+            def wrapper():
+                args = [f.result() if isinstance(f, Future) else f for f in resolved_deps]
+                result = _run_task(n.func, args, n.params)
+                self.cache[n.unique_id] = result
+                if use_cache and n.cacheable and n.serializer:
+                    n.serializer(result, n.name, n.unique_id)
+                return result
+            return wrapper
 
-    #    #     params = n.params.copy()
-    #    #     sig = inspect.signature(n.func)
-    #    #     param_names = list(sig.parameters)
-    #    #     bound_args = {param_names[i]: args[i] for i in range(len(args))}
-    #    #     bound_args.update(params)
-    #    #     result = n.func(**bound_args)
+        futures: dict[str, Future] = {}
+        with ThreadPoolExecutor() as executor:
+            for n in dirty_nodes:
+                resolved_deps = []
+                for dep in n.dependencies:
+                    if dep.is_file:
+                        resolved_deps.append(dep.fpath)
+                    elif dep.unique_id not in dirty_ids:
+                        obj = self._retrieve_from_cache(dep, use_cache, verbose)
+                        resolved_deps.append(obj)
+                    else:
+                        resolved_deps.append(futures[dep.unique_id])
 
-    #    #     if use_cache and n.cacheable and n.serializer:
-    #    #         n.serializer(result, n.name, n.unique_id)
+                futures[n.unique_id] = executor.submit(make_wrapper(n, resolved_deps))
 
-    #    #     with lock:
-    #    #         resolved[n.unique_id] = result
-    #    #     return result
-
-    #    # with ThreadPoolExecutor() as executor:
-    #    #     for n in ordered_nodes:
-    #    #         futures[n.unique_id] = executor.submit(resolve_node, n)
-
-    #    #     for unique_id, future in futures.items():
-    #    #         self.cache[unique_id] = future.result
-
-    #    # return self.cache[node.unique_id]
+            final_result = futures[node.unique_id].result()
+            return final_result
 
 
     def make(self, name, verbose: bool = False, use_cache: bool = True):
@@ -350,8 +319,5 @@ class DependencyManager:
 
     def make_parallel(self, name, verbose: bool = False, use_cache: bool = True):
         node = self.build_graph(name, verbose)
-
-        print('\nresolve_parallel')
-        print('----------------')
         result = self.resolve_parallel(node, use_cache)
         return result

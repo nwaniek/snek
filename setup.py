@@ -4,7 +4,7 @@ from setuptools import setup
 
 setup(
     name='snek',
-    version='0.1.1',
+    version='0.1.2',
     description='A minimalistic dependency manager',
     author='Nicolai Waniek',
     author_email='n@rochus.net',

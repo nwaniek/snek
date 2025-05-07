@@ -21,7 +21,7 @@ class AConfig:
 class BConfig:
     # subconfig for compute_B
     option_b_1: float = 1.2
-    option_b_2: int   = 71
+    option_b_2: int   = 711
 
 
 @dataclass
@@ -65,7 +65,7 @@ def register_pipeline(dm: DependencyManager, config: Configuration):
         return AResult("Result A (" + str(kwargs['option_a_1']) + ")")
 
     @dm.target(provides='C', params=None)
-    def compute_C():
+    def compute_C() -> CResult:
         print("called compute_C()")
         return CResult("C Result")
 
