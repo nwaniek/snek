@@ -16,8 +16,8 @@ such pipelines can be described as a computational graph, and intermediate
 results might have to be cached to avoid expensive recomputation.
 
 As an example of snek's behavior, let's have a look at the first run of
-[demo.py]@(demo/demo.py) with caching enabled, meaning it'll store intermediate
-results, and verbose output:
+[demo.py]@(file::demo/demo.py) with caching enabled, meaning it'll store
+intermediate results, and verbose output:
 
 :: sh
     $ ./demo.py 
@@ -43,9 +43,9 @@ only look as follows
     BResult(value='Result B following Result A (101) C Result')
 
 Meaning instead of computing all intermediate artifacts required to generate B
-(which are A and C in the example presented in [demo.py]@(demo.py)), it'll load
-B from some cache. You can find more details about the `cache` and what snek
-really provides below.
+(which are A and C in the example presented in [demo.py]@(file::demo.py)), it'll
+load B from some cache. You can find more details about the `cache` and what
+snek really provides below.
 
 
 ## Usage
@@ -65,7 +65,7 @@ Let's dive right in:
         dm.make('awesomesauce')
 
 The above code illustrates how to use snek to make a particular target called
-`asesomsauce`. You can find this demo in file [demo2.py]@(demo/demo2.py)
+`asesomsauce`. You can find this demo in file [demo2.py]@(file::demo/demo2.py)
 
 Of course this might not be very exciting, but once we introduce other targets
 that, themselves, need some targets, things get more interesting:
@@ -93,10 +93,10 @@ target `awesomesauce`. Then, we define a target `printstr`, which requires
 as input `awesomesauce` -- inferred by the name of the argument to `printstr` --
 and then actually prints it.
 
-The above code can be found in [demo3.py]@(demo/demo3.py). `snek` will figure
-out which function to call by itself if you don't specify a different target
-name for what a function provides. Examples of changing the target name via the
-`provides` argument to `dm.target` can be found further below.
+The above code can be found in [demo3.py]@(file::demo/demo3.py). `snek` will
+figure out which function to call by itself if you don't specify a different
+target name for what a function provides. Examples of changing the target name
+via the `provides` argument to `dm.target` can be found further below.
 
 You probably already see where this is going, but maybe another, longer, example
 helps make things clear and introduces changing the name of what a function
@@ -151,7 +151,7 @@ gets cumbersome and its easier to thing in terms of artifacts that get
 generated, and which are the input for other functions.  Also maybe some
 configuration parameters for a pipeline influence how intermediate artifacts are
 generated or not. The code for the example above is located in file
-[demo4.py]@(demo/demo4.py).
+[demo4.py]@(file::demo/demo4.py).
 
 
 ## Cache
@@ -193,8 +193,8 @@ the following example:
     class AResult(Serializable):
         value: str
 
-In the code above, which is part of [demo.py]@(demo/demo.py), we first define
-some generic class that has a function `serialize` and a class function
+In the code above, which is part of [demo.py]@(file::demo/demo.py), we first
+define some generic class that has a function `serialize` and a class function
 `deserialize`. snek's `DependencyManager` will look for these two methods for
 any result of a target. The type of the target will be inferred from type hints,
 but can also be specified as an argument to `dm.target`. Internally, snek will
@@ -203,7 +203,7 @@ example above, I made use of two small helper functions `dataclass_to_npz` and
 `npz_to_dataclass` that I developed to turn, as their names imply, simple
 dataclasses into npz files or the other way around to avoid using `pickle`. If
 you want to read more about these functions and how they work, have a look at
-[dcutils]@(demo/dcutils.py).
+[dcutils]@(file::demo/dcutils.py).
 
 In the code above, you also see that `snek` doesn't really care about how your
 caching mechanism should work. It merely tells you to seriealize or deserialize
@@ -230,16 +230,16 @@ considered for this, as in the following example
         print("called compute_B()")
         return BResult("Result B following " + A.value + " " + C.value)
 
-In the code above, taken from [demo.py]@(demo/demo.py), we specify that a target
-`compute_B`, which provides `B`, depends on two other things `A` and `C`.
+In the code above, taken from [demo.py]@(file::demo/demo.py), we specify that a
+target `compute_B`, which provides `B`, depends on two other things `A` and `C`.
 Moreover, `compute_B` depends on some extra parameters which determine what is
 computed, and we specify this using the `params` argument to `dm.target`.
 
 ## File Dependencies
 
 `snek` has a tiny bit of more magic: it understands that we're often working
-with files. An example, again taken from [demo.py]@(demo/demo.py) will show how
-to use files:
+with files. An example, again taken from [demo.py]@(file::demo/demo.py) will
+show how to use files:
 
 :: python
     @dm.target(provides='A', requires=['@demoinput.txt'], params=asdict(config.config_a))
@@ -267,14 +267,14 @@ resolves the node within the graph. Let's have a look at the implementation:
 
 If you want to examine the tree, you can call `build_graph` and then walk the
 tree given by the returned `node`. I invite you to have a look at
-[snek.py]@(snek.py) what information a node contains. 
+[snek.py]@(file::snek.py) what information a node contains. 
 
 
 ## Hackability
 
 With about 200 lines of very simple python code, `snek` is as short as it gets.
 You probably don't even want to install it as a package and just throw
-[snek.py]@(snek.py) into your project source folder, extend it, change it
+[snek.py]@(file::snek.py) into your project source folder, extend it, change it
 around, automate other things.
 
 
@@ -287,5 +287,6 @@ issue or submit a pull request on GitHub.
 
 ## License
 
-`snek` is licensed under the MIT License. See the [LICENSE]@(LICENSE) file for details.
+`snek` is licensed under the MIT License. See the [LICENSE]@(file::LICENSE) file
+for details.
 
