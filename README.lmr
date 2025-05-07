@@ -90,10 +90,13 @@ Now we call `dm.make` on the printstr function. awesomesauce itself doesn't
 directly print any more, but returns a string. This string is the result of the
 target `awesomesauce`. Then, we define a target `printstr`, which requires
 as input `awesomesauce`, takes it as some value, and then actually prints it.
-The above code can be found in [demo3.py]@(demo/demo3.py).
+The above code can be found in [demo3.py]@(demo/demo3.py). `snek` will figure
+out which function to call by itself if you don't specify a different target
+name for what a function provides.
 
 You probably already see where this is going, but maybe another, longer, example
-helps make things clear:
+helps make things clear and introduces changing the name of what a function
+provides:
 
 :: python
 	#!/usr/bin/env python
@@ -135,14 +138,16 @@ helps make things clear:
 		print(result)
 
 
-In the example above, we define three different targets A, B, and C. While A and
-C can stand independently, B requires A and B. Of course, this can be also
-expressed with simply chaining some functions, but often -- especially in large
-data science pipelines -- this gets cumbersome and its easier to thing in terms
-of artifacts that get generated, and which are the input for other functions.
-Also maybe some configuration parameters for a pipeline influence how
-intermediate artifacts are generated or not. The code for the example above is
-located in file [demo4.py]@(demo/demo4.py).
+In the example above, we define three different targets A, B, and C (specified
+using the `provides` argument to `dm.target`, because the functions have
+different names than what they produce). While A and C can stand independently,
+B requires A and B. Of course, this can be also expressed with simply chaining
+some functions, but often -- especially in large data science pipelines -- this
+gets cumbersome and its easier to thing in terms of artifacts that get
+generated, and which are the input for other functions.  Also maybe some
+configuration parameters for a pipeline influence how intermediate artifacts are
+generated or not. The code for the example above is located in file
+[demo4.py]@(demo/demo4.py).
 
 
 ## Cache
@@ -197,21 +202,87 @@ dataclasses into npz files or the other way around to avoid using `pickle`. If
 you want to read more about these functions and how they work, have a look at
 [dcutils]@(demo/dcutils.py).
 
+In the code above, you also see that `snek` doesn't really care about how your
+caching mechanism should work. It merely tells you to seriealize or deserialize
+something based on their target name as well as the unique id that was computed
+for that specific target. Which leads us to the next point.
+
 
 ### Unique IDs
 
-One of the things you might notice above is the usage of a `unique_id`. snek
-*knows* that artifacts that are generated in any data science pipeline usually
-depend on some configuration options. 
+One of the things you might notice above is the usage of a `unique_id`. snek was
+designed with the knowledge that artifacts that are generated in any data
+science or Makefile-like pipeline usually depend on some configuration options,
+files, as well as their parents. For instance, if a pipeline has targets A, B and C,
+then each of them might require some configuration. Let's say A and C are
+required to make B, and B has a change in its configuration, then only B should
+be re-build. However, if C has a change in configuration, then both C and B
+would have to be rebuilt, because C is a dependency of B. To handle this, snek
+expects you to tell it during calls to `dm.target`, which parameters should be
+considered for this, as in the following example
 
+:: python
+    @dm.target(provides='B', requires=['A', 'C'], params={'config_b': config.config_b})
+    def compute_B(A, C, config_b) -> BResult:
+        print("called compute_B()")
+        return BResult("Result B following " + A.value + " " + C.value)
+
+In the code above, taken from [demo.py]@(demo/demo.py), we specify that a target
+`compute_B`, which provides `B`, depends on two other things `A` and `C`.
+Moreover, `compute_B` depends on some extra parameters which determine what is
+computed, and we specify this using the `params` argument to `dm.target`.
+
+## File Dependencies
+
+`snek` has a tiny bit of more magic: it understands that we're often working
+with files. An example, again taken from [demo.py]@(demo/demo.py) will show how
+to use files:
+
+:: python
+    @dm.target(provides='A', requires=['@demoinput.txt'], params=asdict(config.config_a))
+    def compute_A(fpath, **kwargs) -> AResult:
+        print("called compute_A()")
+        print(f"Reading file {fpath}")
+        return AResult("Result A (" + str(kwargs['option_a_1']) + ")")
+
+Essentially, making target `A` depends on some file `demoinput.txt`. This is
+simply specified using the `@` symbol in the list of requirements for the
+target.
+
+
+## Analysing the compute graph
+
+You might wish to analyze or visualize the compute graph that is constructed to
+make a certain target. Internally, `snek` first builds that graph and then
+resolves the node within the graph. Let's have a look at the implementation:
+
+:: python
+    def make(self, name, verbose: bool = False, use_cache: bool = True):
+        node   = self.build_graph(name, verbose)
+        result = self.resolve(node, use_cache, verbose)
+        return result
+
+If you want to examine the tree, you can call `build_graph` and then walk the
+tree given by the returned `node`. I invite you to have a look at
+[snek.py]@(snek.py) what information a node contains. 
+
+
+## Hackability
+
+With about 200 lines of very simple python code, `snek` is as short as it gets.
+You probably don't even want to install it as a package and just throw
+[snek.py]@(snek.py) into your project source folder, extend it, change it
+around, automate other things.
 
 
 ## Contributing
+
 Contributions are welcome!
 If you have suggestions, bug reports, or want to contribute code, please open an
 issue or submit a pull request on GitHub.
 
 
 ## License
+
 `snek` is licensed under the MIT License. See the [LICENSE]@(LICENSE) file for details.
 
