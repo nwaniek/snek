@@ -26,10 +26,8 @@ class BConfig:
 
 @dataclass
 class Configuration:
-    pipeline_option: bool = False
     config_a: AConfig = field(default_factory=lambda: AConfig())
     config_b: BConfig = field(default_factory=lambda: BConfig())
-
 
 
 class Serializable:
@@ -82,6 +80,6 @@ if __name__ == "__main__":
     config = Configuration()
 
     register_pipeline(dm, config)
-    result = dm.make('B', use_cache=True)
+    result = dm.make('B', use_cache=True, verbose=True)
     print(result)
 
