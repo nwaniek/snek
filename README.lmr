@@ -1,5 +1,8 @@
 # SNEK - Python Dependency Manager
 
+!img
+!src sneklogo.png
+
 `snek` is a minimalistic and hackable dependency manager that allows to
 specify targets in spirit similar to Makefiles, but directly within python.
 
@@ -146,16 +149,15 @@ located in file [demo4.py]@(demo/demo4.py).
 
 At this point, you might wonder what the `cacheable=False` argument to
 `dm.target` is. Very often in data science pipelines, we create intermediate
-artifacts which are expensive to compute - let this be time or other resources.
-It'd be nice to simply cache them, and instead of re-computing them, use their
-cached variants.
+artifacts which are expensive to compute - let the cost be time or other
+resources. It'd be nice avoid recomputation and simply cache them.
 
 This is where the `cacheable` flag comes in. By default, all targets in snek's
-`DependencyManager` are assumed to be cacheable (because this is what I built
-this little utility for). For this to work, we need to provide some information
-to snek so that it knows how to serialize and deserialize objects. In fact, snek
-doesn't really care how you want to cache the intermediate objects, it simply
-tells you when it happens.
+`DependencyManager` are assumed to be cacheable (because this is what I built it
+for). For this to work, we need to provide some information to snek so that it
+knows how to serialize and deserialize objects. In fact, snek doesn't really
+care how you want to cache the intermediate objects, it simply invokes some
+functions when it happens.
 
 By default, snek calls function `serialize` to cache an (intermediate) object --
 or more precisely the result of a target -- and `deserialize` to load it from
@@ -189,7 +191,7 @@ some generic class that has a function `serialize` and a class function
 any result of a target. The type of the target will be inferred from type hints,
 but can also be specified as an argument to `dm.target`. Internally, snek will
 then try to call these functions to load/store the result of a target. In the
-example above, I made use of two helper functions `dataclass_to_npz` and
+example above, I made use of two small helper functions `dataclass_to_npz` and
 `npz_to_dataclass` that I developed to turn, as their names imply, simple
 dataclasses into npz files or the other way around to avoid using `pickle`. If
 you want to read more about these functions and how they work, have a look at
