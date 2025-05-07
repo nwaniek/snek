@@ -205,8 +205,7 @@ class DependencyManager:
 
 
     def resolve(self, node: Node,  use_cache: bool = False, verbose: bool = False) -> Any:
-        result = self._retrieve_from_cache(node, use_cache, verbose)
-        if result:
+        if result := self._retrieve_from_cache(node, use_cache, verbose):
             return result
 
         resolved_deps = []
@@ -276,8 +275,7 @@ class DependencyManager:
     def resolve_parallel(self, node: Node, use_cache: bool = True, verbose: bool = False):
         dirty_nodes = self.find_dirty_nodes_toposorted(node, use_cache)
         if not dirty_nodes:
-            obj = self._retrieve_from_cache(node, use_cache, verbose)
-            if obj:
+            if obj := self._retrieve_from_cache(node, use_cache, verbose):
                 return obj
             dirty_nodes.append(node)
         dirty_ids = {n.unique_id for n in dirty_nodes}
