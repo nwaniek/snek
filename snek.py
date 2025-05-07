@@ -29,6 +29,8 @@ from dataclasses import dataclass
 from functools import wraps
 import inspect
 import hashlib
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Lock
 
 __version__ = '0.1.1'
 
@@ -69,6 +71,22 @@ class Node:
     deserializer : Optional[Callable[[str, str], Any]]
     fpath        : Optional[Path | None]
     is_file      : bool
+
+
+def toposort(node: Node) -> List[Node]:
+   visited = set()
+   ordered = []
+
+   def visit(n: Node):
+       if n.unique_id in visited:
+           return
+       visited.add(n.unique_id)
+       for dep in n.dependencies:
+           visit(dep)
+       ordered.append(n)
+
+   visit(node)
+   return ordered
 
 
 def resolve_file_dep(name: str) -> Path:
@@ -127,7 +145,7 @@ class DependencyManager:
         return decorator
 
 
-    def build_graph(self, name, verbose=False):
+    def build_graph(self, name, verbose=False) -> Node:
         if name not in self.registry:
             raise ValueError(f"Target {name} not known")
 
@@ -175,7 +193,7 @@ class DependencyManager:
         return Node(name, unique_id, cacheable, dep_nodes, params, func, return_type, serializer, deserializer, cache_path, False)
 
 
-    def resolve(self, node: Node,  use_cache: bool = False, verbose: bool = False):
+    def resolve(self, node: Node,  use_cache: bool = False, verbose: bool = False) -> Any:
         if node.unique_id in self.cache:
             if verbose:
                 print(f"Using cached {node.name}")
@@ -217,8 +235,123 @@ class DependencyManager:
         return result
 
 
+    def resolve_parallel(self, node: Node):
+        ordered_nodes = toposort(node)
+        futures = {}
+
+        # for n in ordered_nodes:
+        #     deps = []
+        #     if de.is_file:
+
+
+        #     deps = [futures[dep.unique_id] for dep in n.dependencies if not d.is_file ]
+
+
+    #def resolve_parallel(self, node: Node, use_cache: bool = False):
+    #    ordered_nodes = toposort(node)
+    #    futures = {}
+    #    resolved = {}
+    #    lock = Lock()
+
+    #    print("order: ")
+    #    for n in ordered_nodes:
+    #        print(n.name)
+
+    #    print("---")
+
+    #    def resolve_node(n):
+    #        # check if this is already in cache
+    #        with lock:
+    #            if n.unique_id in self.cache:
+    #                return resolved[n.unique_id]
+
+    #        if n.is_file:
+    #            resolved[n.unique_id] = n.fpath
+    #            return n.fpath
+
+    #        args = []
+    #        for dep in n.dependencies:
+    #            with lock:
+    #                args.append(resolved[dep.unique_id] if not dep.is_file else dep.fpath)
+
+    #        print(n.name, "args", args)
+
+    #        params      = n.params.copy()
+    #        sig         = inspect.signature(n.func)
+    #        param_names = list(sig.parameters)
+    #        bound_args  = {}
+    #        for i, arg in enumerate(args):
+    #            if i < len(param_names):
+    #                bound_args[param_names[i]] = arg
+    #        bound_args.update(params)
+
+    #        print(n.name, "bound_args", bound_args)
+
+    #        result = n.func(**bound_args)
+    #        print(result)
+
+    #        # if use_cache and n.cacheable and n.serializer:
+    #        #     n.serializer(result, n.name, n.unique_id)
+
+    #        with lock:
+    #            resolved[n.unique_id] = result
+
+    #        return result
+
+    #    with ThreadPoolExecutor() as executor:
+    #        for n in ordered_nodes:
+    #            futures[n.unique_id] = executor.submit(resolve_node, n)
+
+    #        for unique_id, future in futures.items():
+    #            self.cache[unique_id] = future.result()
+    #            # print(unique_id, future)
+
+
+    #    # def resolve_node(n):
+    #    #     # Check cache
+    #    #     with lock:
+    #    #         if n.unique_id in resolved:
+    #    #             return resolved[n.unique_id]
+
+    #    #     args = []
+    #    #     for dep in n.dependencies:
+    #    #         with lock:
+    #    #             args.append(resolved[dep.unique_id] if not dep.is_file else dep.fpath)
+
+    #    #     params = n.params.copy()
+    #    #     sig = inspect.signature(n.func)
+    #    #     param_names = list(sig.parameters)
+    #    #     bound_args = {param_names[i]: args[i] for i in range(len(args))}
+    #    #     bound_args.update(params)
+    #    #     result = n.func(**bound_args)
+
+    #    #     if use_cache and n.cacheable and n.serializer:
+    #    #         n.serializer(result, n.name, n.unique_id)
+
+    #    #     with lock:
+    #    #         resolved[n.unique_id] = result
+    #    #     return result
+
+    #    # with ThreadPoolExecutor() as executor:
+    #    #     for n in ordered_nodes:
+    #    #         futures[n.unique_id] = executor.submit(resolve_node, n)
+
+    #    #     for unique_id, future in futures.items():
+    #    #         self.cache[unique_id] = future.result
+
+    #    # return self.cache[node.unique_id]
+
+
     def make(self, name, verbose: bool = False, use_cache: bool = True):
         node   = self.build_graph(name, verbose)
         result = self.resolve(node, use_cache, verbose)
         return result
 
+
+    def make_parallel(self, name, verbose: bool = False, use_cache: bool = True):
+        node = self.build_graph(name, verbose)
+
+        print('\nresolve_parallel')
+        print('----------------')
+        result = self.resolve_parallel(node, use_cache)
+        return result
