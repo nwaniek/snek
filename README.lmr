@@ -20,27 +20,27 @@ As an example of snek's behavior, let's have a look at the first run of
 results, and verbose output:
 
 :: sh
-	$ ./demo.py 
-	Resolved: A cb890cae7cdc934e705dd064dad9e30843267181
-	Resolved: C d9d7fadf0eb3bde7bbe4763033f25432527ef81d
-	Resolved: B 2b5f5080f8750e1e6b721c46772c271aeba79a16
-	called compute_A()
-	Reading file demoinput.txt
-	called compute_C()
-	called compute_B()
-	BResult(value='Result B following Result A (101) C Result')
+    $ ./demo.py 
+    Resolved: A cb890cae7cdc934e705dd064dad9e30843267181
+    Resolved: C d9d7fadf0eb3bde7bbe4763033f25432527ef81d
+    Resolved: B 2b5f5080f8750e1e6b721c46772c271aeba79a16
+    called compute_A()
+    Reading file demoinput.txt
+    called compute_C()
+    called compute_B()
+    BResult(value='Result B following Result A (101) C Result')
 
 
 Subsequent runs of demo.py with caching enabled and verbose output will then
 only look as follows
 
 :: sh
-	$ ./demo.py
-	Resolved: A cb890cae7cdc934e705dd064dad9e30843267181
-	Resolved: C d9d7fadf0eb3bde7bbe4763033f25432527ef81d
-	Resolved: B 2b5f5080f8750e1e6b721c46772c271aeba79a16
-	Loaded B from cache
-	BResult(value='Result B following Result A (101) C Result')
+    $ ./demo.py
+    Resolved: A cb890cae7cdc934e705dd064dad9e30843267181
+    Resolved: C d9d7fadf0eb3bde7bbe4763033f25432527ef81d
+    Resolved: B 2b5f5080f8750e1e6b721c46772c271aeba79a16
+    Loaded B from cache
+    BResult(value='Result B following Result A (101) C Result')
 
 Meaning instead of computing all intermediate artifacts required to generate B
 (which are A and C in the example presented in [demo.py]@(demo.py)), it'll load
@@ -53,16 +53,16 @@ really provides below.
 Let's dive right in:
 
 :: python
-	from snek import DependencyManager
+    from snek import DependencyManager
 
-	dm = DependencyManager()
+    dm = DependencyManager()
 
-	@dm.target(cacheable=False)
-	def awesomesauce():
-		print("Hello, World!")
+    @dm.target(cacheable=False)
+    def awesomesauce():
+        print("Hello, World!")
 
-	if __name__ == "__main__":
-		dm.make('awesomesauce')
+    if __name__ == "__main__":
+        dm.make('awesomesauce')
 
 The above code illustrates how to use snek to make a particular target called
 `asesomsauce`. You can find this demo in file [demo2.py]@(demo/demo2.py)
@@ -71,20 +71,20 @@ Of course this might not be very exciting, but once we introduce other targets
 that, themselves, need some targets, things get more interesting:
 
 :: python
-	from snek import DependencyManager
+    from snek import DependencyManager
 
-	dm = DependencyManager()
+    dm = DependencyManager()
 
-	@dm.target(cacheable=False)
-	def awesomesauce():
-		return "Hello, World!"
+    @dm.target(cacheable=False)
+    def awesomesauce():
+        return "Hello, World!"
 
-	@dm.target(cacheable=False)
-	def printstr(awesomesauce):
-		print(awesomesauce)
+    @dm.target(cacheable=False)
+    def printstr(awesomesauce):
+        print(awesomesauce)
 
-	if __name__ == "__main__":
-		dm.make('printstr')
+    if __name__ == "__main__":
+        dm.make('printstr')
 
 
 Now we call `dm.make` on the printstr function. awesomesauce itself doesn't
@@ -103,43 +103,43 @@ helps make things clear and introduces changing the name of what a function
 provides:
 
 :: python
-	#!/usr/bin/env python
+    #!/usr/bin/env python
 
-	from snek import DependencyManager
-	from dataclasses import dataclass
+    from snek import DependencyManager
+    from dataclasses import dataclass
 
-	dm = DependencyManager()
+    dm = DependencyManager()
 
-	@dataclass
-	class AResult:
-		value: str
+    @dataclass
+    class AResult:
+        value: str
 
-	@dataclass
-	class BResult:
-		value: str
+    @dataclass
+    class BResult:
+        value: str
 
-	@dataclass
-	class CResult:
-		value: str
+    @dataclass
+    class CResult:
+        value: str
 
-	@dm.target(provides='A', cacheable=False)
-	def compute_A() -> AResult:
-		print("called compute_A()")
-		return AResult("Result of A()")
+    @dm.target(provides='A', cacheable=False)
+    def compute_A() -> AResult:
+        print("called compute_A()")
+        return AResult("Result of A()")
 
-	@dm.target(provides='C', cacheable=False)
-	def compute_C() -> CResult:
-		print("called compute_C()")
-		return CResult("C Result")
+    @dm.target(provides='C', cacheable=False)
+    def compute_C() -> CResult:
+        print("called compute_C()")
+        return CResult("C Result")
 
-	@dm.target(provides='B', requires=['A', 'C'], cacheable=False)
-	def compute_B(A, C) -> BResult:
-		print("called compute_B()")
-		return BResult("Result B following " + A.value + " " + C.value)
+    @dm.target(provides='B', requires=['A', 'C'], cacheable=False)
+    def compute_B(A, C) -> BResult:
+        print("called compute_B()")
+        return BResult("Result B following " + A.value + " " + C.value)
 
-	if __name__ == "__main__":
-		result = dm.make('B')
-		print(result)
+    if __name__ == "__main__":
+        result = dm.make('B')
+        print(result)
 
 
 In the example above, we define three different targets A, B, and C (specified
@@ -177,22 +177,21 @@ the following example:
 
 :: python
 
-	class Serializable:
-		def serialize(self, name: str, unique_id: str):
-			fpath = Path('cache') / (name + "_" + unique_id + ".npz")
-			dataclass_to_npz(self, fpath)
+    class Serializable:
+        def serialize(self, name: str, unique_id: str):
+            fpath = Path('cache') / (name + "_" + unique_id + ".npz")
+            dataclass_to_npz(self, fpath)
 
-		@classmethod
-		def deserialize(cls, name: str, unique_id: str):
-			fpath = Path('cache') / (name + "_" + unique_id + ".npz")
-			if fpath.exists():
-				return npz_to_dataclass(cls, fpath)
-			return None
+        @classmethod
+        def deserialize(cls, name: str, unique_id: str):
+            fpath = Path('cache') / (name + "_" + unique_id + ".npz")
+            if fpath.exists():
+                return npz_to_dataclass(cls, fpath)
+            return None
 
-
-	@dataclass
-	class AResult(Serializable):
-		value: str
+    @dataclass
+    class AResult(Serializable):
+        value: str
 
 In the code above, which is part of [demo.py]@(demo/demo.py), we first define
 some generic class that has a function `serialize` and a class function
