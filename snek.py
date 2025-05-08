@@ -72,15 +72,66 @@ class Node:
     is_file      : bool
 
 
-def _run_task(func, args, params):
-    sig         = inspect.signature(func)
-    param_names = list(sig.parameters)
-    bound_args  = {}
-    for i, arg in enumerate(args):
-        if i < len(param_names):
-            bound_args[param_names[i]] = arg
-    bound_args.update(params)
-    return func(**bound_args)
+def _run_task(func, deps, params):
+    sig = inspect.signature(func)
+    arguments = sig.parameters
+
+    arg_names           = []
+    var_positional_name = None
+    var_keyword_name    = None
+
+    for name, param in arguments.items():
+        if param.kind == inspect.Parameter.VAR_POSITIONAL:
+            var_positional_name = name
+        elif param.kind == inspect.Parameter.VAR_KEYWORD:
+            var_keyword_name = name
+        else:
+            arg_names.append(name)
+
+    # bind deps to named args if possible
+    bound_positional = []
+    bound_kwargs     = {}
+    dep_index        = 0
+
+    for name in arg_names:
+        if dep_index < len(deps):
+            bound_positional.append(deps[dep_index])
+            dep_index += 1
+        elif name in params:
+            bound_kwargs[name] = params.pop(name)
+        else:
+            raise ValueError(f"Missing value for parameter '{name}'")
+
+    # remaining deps go to *args (if it was provided)
+    extra_deps = deps[dep_index:]
+    extra_deps_to_kwargs = False
+
+    if extra_deps:
+        if var_positional_name:
+            bound_positional.extend(extra_deps)
+        elif var_keyword_name:
+            extra_deps_to_kwargs = True
+        else:
+            raise TypeError("Too many dependencies provided")
+
+    # remaining params go to **kwargs as well as remaining deps if no *args was
+    # provided.
+    if var_keyword_name:
+        bound_kwargs.update(params)
+        if extra_deps_to_kwargs:
+            # make sure not to overwrite another param
+            kw_var = 'args'
+            i = 0
+            while kw_var in params:
+                kw_var = 'args' + str(i)
+                i += 1
+            bound_kwargs[kw_var] = extra_deps
+
+    elif params:
+        raise TypeError(f"Unexpected parameters: {list(params)}")
+
+    return func(*bound_positional, **bound_kwargs)
+
 
 
 def resolve_file_dep(name: str) -> Path:
@@ -282,8 +333,8 @@ class DependencyManager:
 
         def make_wrapper(n, resolved_deps):
             def wrapper():
-                args = [f.result() if isinstance(f, Future) else f for f in resolved_deps]
-                result = _run_task(n.func, args, n.params)
+                deps = [f.result() if isinstance(f, Future) else f for f in resolved_deps]
+                result = _run_task(n.func, deps, n.params)
                 self.cache[n.unique_id] = result
                 if use_cache and n.cacheable and n.serializer:
                     n.serializer(result, n.name, n.unique_id)
