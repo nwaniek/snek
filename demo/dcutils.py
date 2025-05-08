@@ -1,13 +1,16 @@
 #!/usr/bin/env python
 
+__version__ = "0.1.1"
+
 import configparser
 import argparse
 import types
 from pathlib import Path
 from dataclasses import fields, is_dataclass, MISSING, asdict
 from typing import TypeVar, Any, Type, List, Literal, Union, Tuple, get_origin, get_args
-import hashlib
+from types import UnionType
 
+import hashlib
 try:
     import orjson
     def __dumps(obj: Any) -> str:
@@ -19,15 +22,34 @@ except ImportError:
 
 import numpy as np
 
+
 T = TypeVar('T')
 
+
+def make_json_serializable(obj):
+    if isinstance(obj, Path):
+        return str(obj)
+    elif isinstance(obj, dict):
+        return {k: make_json_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [make_json_serializable(v) for v in obj]
+    elif isinstance(obj, tuple):
+        return tuple(make_json_serializable(v) for v in obj)
+    else:
+        return obj
 
 def dataclass_to_hash(obj: object, method: str = "sha1") -> str:
     if not is_dataclass(obj):
         raise TypeError("compute_hash can only be used with dataclass instances")
 
+    # Convert to a serializable dictionary
     config_dict = asdict(obj)
+    config_dict = make_json_serializable(config_dict)
+
+    # Convert to a JSON string with sorted keys for consistency
     config_json = __dumps(config_dict)
+
+    # Compute the hash
     hash_func = getattr(hashlib, method)
     return hash_func(config_json.encode("utf-8")).hexdigest()
 
@@ -217,6 +239,15 @@ def pprint_dataclass(obj, indent=2):
             print(f"{prefix}{field.name} ({field.type}):  {value}")
 
 
+def choose_union_type(args):
+    """Pick the most appropriate type from a Union, for CLI parsing."""
+    # Prefer simple types for parsing
+    for preferred in (str, Path, int, float, bool):
+        if preferred in args:
+            return preferred
+    return str  # Fallback
+
+
 def str_to_tuple(string: str, tuple_type: type) -> Tuple:
     value_types = get_args(tuple_type)
     values = [s.strip() for s in string.split(",")]
@@ -253,6 +284,10 @@ def str_to_tuple(string: str, tuple_type: type) -> Tuple:
             result[i] = etype(values[i])
 
     return tuple(result)
+
+
+def is_union(tp):
+    return get_origin(tp) in {Union, UnionType}
 
 
 def dataclass_to_parser(cls, parser, prefix=""):
@@ -292,11 +327,20 @@ def dataclass_to_parser(cls, parser, prefix=""):
             # default = field.default
             parser.add_argument(arg_name, type=lambda x: (str(x).lower() == 'true'), default=default, required=False)
 
-        elif origin is Union:
-            # specify no type, let the class verification do it
-            # TODO: make this pick a better type, maybe synthesize an
-            # appropriate lambda
-            parser.add_argument(arg_name, type=None, default=default, required=False)
+        elif field_type == Path:
+            parser.add_argument(arg_name, type=str, default=default, required=False)
+
+        elif is_union(field_type):
+            # Handle Union[str, Path], Union[str, List[str]], etc. and if it's
+            # Optional[T], reduce to T
+            non_none_args = [a for a in args if a is not type(None)]
+            if len(non_none_args) == 1:
+                actual_type = non_none_args[0]
+                parser.add_argument(arg_name, type=actual_type, default=default, required=False)
+            else:
+                selected_type = choose_union_type(non_none_args)
+                parser.add_argument(arg_name, type=selected_type, default=default, required=False)
+
 
         else:
             # default = field.default
