@@ -65,7 +65,7 @@ def _augment_class(cls, tablename, primary_keys):
 #def extended_db_table(_cls=None, tablename='', primary_keys=["id"]):
 def db_cached(_cls=None, *, tablename='', primary_keys=['id']):
     def wrap(cls):
-        return _augment_class(_cls, tablename, primary_keys)
+        return _augment_class(cls, tablename, primary_keys)
 
     if _cls is None:
         return wrap
