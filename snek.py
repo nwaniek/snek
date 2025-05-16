@@ -234,14 +234,14 @@ class DependencyManager:
         unique_id = hash_obj(hash_input)
         cache_path = self.cache_dir / (unique_id + '.npz')
         if verbose:
-            print(f"Resolved: {name} {unique_id}")
+            print(f"Node: {name} {unique_id}")
         return Node(name, unique_id, cacheable, dep_nodes, params, func, return_type, serializer, deserializer, cache_path, False)
 
 
     def _retrieve_from_cache(self, node, use_cache:bool, verbose:bool):
         if node.unique_id in self.cache:
             if verbose:
-                print(f"Using cached {node.name}")
+                print(f"Using memory-cached {node.name}")
             return self.cache[node.unique_id]
 
         if use_cache and node.cacheable and node.deserializer:
@@ -360,13 +360,10 @@ class DependencyManager:
             return final_result
 
 
-    def make(self, name, verbose: bool = False, use_cache: bool = True):
+    def make(self, name, verbose: bool = False, use_cache: bool = True, parallel: bool = False):
         node   = self.build_graph(name, verbose)
-        result = self.resolve(node, use_cache, verbose)
-        return result
-
-
-    def make_parallel(self, name, verbose: bool = False, use_cache: bool = True):
-        node = self.build_graph(name, verbose)
-        result = self.resolve_parallel(node, use_cache)
+        if not parallel:
+            result = self.resolve(node, use_cache, verbose)
+        else:
+            result = self.resolve_parallel(node, use_cache)
         return result

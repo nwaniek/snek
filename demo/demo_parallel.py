@@ -80,6 +80,6 @@ if __name__ == "__main__":
     config = Configuration()
 
     register_pipeline(dm, config)
-    result = dm.make_parallel('B', use_cache=True, verbose=True)
+    result = dm.make('B', use_cache=True, verbose=True, parallel=True)
     print(result)
 
