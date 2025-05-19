@@ -5,12 +5,12 @@ import sys, os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from snek import DependencyManager
-from dataclasses import dataclass, is_dataclass, field, asdict, make_dataclass, fields
+from dataclasses import dataclass, field, asdict, make_dataclass, fields
 
 import tinysql
 
 
-def _serialize(self, name: str, unique_id: str):
+def _serialize(self, _: str, unique_id: str):
     if not hasattr(self, '_tinysql_proxy_class'):
         raise RuntimeError("Class not decorated with extended_db_table")
     proxy_cls = self._tinysql_proxy_class
@@ -23,7 +23,7 @@ def _serialize(self, name: str, unique_id: str):
 
 
 @classmethod
-def _deserialize(cls, name: str, unique_id: str):
+def _deserialize(cls, _: str, unique_id: str):
     if not hasattr(cls, '_tinysql_proxy_class'):
         raise RuntimeError("Class not decorated with extended_db_table")
     proxy_cls = cls._tinysql_proxy_class
