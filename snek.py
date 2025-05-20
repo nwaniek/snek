@@ -43,6 +43,7 @@ except ImportError:
     def __dumps(obj: Any) -> str:
         return json.dumps(obj, default=str, sort_keys=True)
 
+
 def hash_file(file_path: Path) -> str:
     """Generate a hash based on the content of a file."""
     with open(file_path, 'rb') as f:
