@@ -60,7 +60,6 @@ def _augment_class(cls, tablename, primary_keys):
     return cls
 
 
-#def extended_db_table(_cls=None, tablename='', primary_keys=["id"]):
 def db_cached(_cls=None, *, tablename='', primary_keys=['id']):
     def wrap(cls):
         return _augment_class(cls, tablename, primary_keys)
