@@ -31,7 +31,7 @@ import inspect
 import hashlib
 from concurrent.futures import ThreadPoolExecutor, Future
 
-__version__ = '0.1.2'
+__version__ = '0.1.3'
 
 try:
     import orjson
@@ -173,14 +173,14 @@ class DependencyManager:
 
             requires_list = [param.name for param in signature.parameters.values() if param.kind not in [inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD]]
             self.registry[name] = {
-                "func": func,
-                "cacheable": cacheable,
-                "return_type": rtype,
-                "serializer": serializer,
+                "func":         func,
+                "cacheable":    cacheable,
+                "return_type":  rtype,
+                "serializer":   serializer,
                 "deserializer": deserializer,
-                "param_names": set(signature.parameters),
-                "requires": requires if requires is not None else requires_list,
-                "params": params,
+                "param_names":  set(signature.parameters),
+                "requires":     requires if requires is not None else requires_list,
+                "params":       params,
             }
 
             @wraps(func)
@@ -313,7 +313,7 @@ class DependencyManager:
             # compute (it's not in the memory cache and deserialization didn't
             # succeed either)
             is_dirty = True if (n.func is not None) else False
-            is_dirty = is_dirty and (any_dep_dirty or True)
+            is_dirty = is_dirty or any_dep_dirty
             if is_dirty:
                 topo_sorted.append(n)
 
