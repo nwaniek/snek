@@ -31,7 +31,7 @@ import inspect
 import hashlib
 from concurrent.futures import ThreadPoolExecutor, Future
 
-__version__ = '0.1.4'
+__version__ = '0.1.5'
 
 try:
     import orjson
@@ -144,6 +144,7 @@ class DependencyManager:
 
     def __init__(self, cache_dir = 'cache'):
         self.registry: Dict[str, Dict[str, Any]] = {}
+        self.nodes = {}
         self.cache = {}
         self.cache_dir = Path(cache_dir)
 
@@ -157,6 +158,7 @@ class DependencyManager:
                return_type=None,
                serializer=None,
                deserializer=None):
+
         params = params or {}
         def decorator(func):
             name          = func.__name__ if provides is None else provides
@@ -234,46 +236,54 @@ class DependencyManager:
         }
         unique_id = hash_obj(hash_input)
         cache_path = self.cache_dir / (unique_id + '.npz')
-        if verbose:
-            print(f"Node: {name} {unique_id}")
-        return Node(name, unique_id, cacheable, dep_nodes, params, func, return_type, serializer, deserializer, cache_path, False)
 
+        identifier = f"{name}_{unique_id}"
+        if identifier in self.nodes:
+            if verbose:
+                print(f"build_graph: using node '{name} ({unique_id})'")
+            node = self.nodes[identifier]
+        else:
+            if verbose:
+                print(f"build_graph: creating node '{name} ({unique_id})")
+            node = Node(name, unique_id, cacheable, dep_nodes, params, func, return_type, serializer, deserializer, cache_path, False)
+            self.nodes[identifier] = node
+        return node
 
     def _retrieve_from_cache(self, node, use_cache:bool, verbose:bool):
         if node.unique_id in self.cache:
             if verbose:
-                print(f"Using memory-cached {node.name}")
+                print(f"Resolve: Using memory-cached '{node.name} ({node.unique_id})'")
             return self.cache[node.unique_id]
 
         if use_cache and node.cacheable and node.deserializer:
             result = node.deserializer(node.name, node.unique_id)
             if result is not None:
                 if verbose:
-                    print(f"Loaded {node.name} from cache using serializer")
+                    print(f"Resolve: Loaded '{node.name} ({node.unique_id})' from cache using serializer")
                 self.cache[node.unique_id] = result
                 return result
 
         return None
 
 
-    def resolve(self, node: Node,  use_cache: bool = False, verbose: bool = False) -> Any:
+    def resolve(self, node: Node, use_cache: bool = False, verbose: bool = False) -> Any:
         if result := self._retrieve_from_cache(node, use_cache, verbose):
-            if verbose:
-                print(f"Resolve: using cached {node.name}.")
             return result
 
         resolved_deps = []
         for dep in node.dependencies:
             if verbose:
-                print(f"Resolving dependency: {dep.name}")
+                print(f"Resolving dependency '{dep.name} ({dep.unique_id})'")
             if dep.is_file:
                 resolved_deps.append(dep.fpath)
             else:
-                resolved_deps.append(self.resolve(dep, use_cache))
+                resolved_deps.append(self.resolve(dep, use_cache, verbose))
 
         if not node.func:
-            raise RuntimeError(f"No Callable for node {node.name}")
+            raise RuntimeError(f"No Callable for node '{node.name} ({node.unique_id})'")
 
+        if verbose:
+            print(f"Resolve: running '{node.name} ({node.unique_id})'.")
         result = _run_task(node.func, resolved_deps, node.params.copy())
         self.cache[node.unique_id] = result
         if use_cache and node.cacheable and node.serializer:
