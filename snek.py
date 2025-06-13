@@ -23,7 +23,7 @@
 # SOFTWARE.
 #
 
-from typing import List, Dict, Optional, Callable, Any, get_type_hints
+from typing import List, Dict, Optional, Union, Literal, Callable, Any, get_type_hints
 from pathlib import Path
 from dataclasses import dataclass
 from functools import wraps
@@ -31,7 +31,7 @@ import inspect
 import hashlib
 from concurrent.futures import ThreadPoolExecutor, Future
 
-__version__ = '0.1.5'
+__version__ = '0.1.6'
 
 try:
     import orjson
@@ -148,18 +148,17 @@ class DependencyManager:
         self.cache = {}
         self.cache_dir = Path(cache_dir)
 
-
     def target(self,
-               provides: Optional[str]=None,
-               requires: Optional[List[str]]=None,
-               params: Optional[Dict[str, Any]] = None,
-               strict_param_check: bool=False,
-               cacheable:bool=True,
-               return_type=None,
-               serializer=None,
-               deserializer=None):
+               provides           : Optional[str] = None,
+               requires           : Optional[List[str]] = None,
+               params             : Dict[str, Any] | Literal['auto'] | None = None,
+               strict_param_check : bool = False,
+               param_source       : Optional[Any] = None,
+               cacheable          : bool = True,
+               return_type        : Any = None,
+               serializer         : Optional[Callable[[Any, str, str], None]] = None,
+               deserializer       : Optional[Callable[[str, str], Any]] = None):
 
-        params = params or {}
         def decorator(func):
             name          = func.__name__ if provides is None else provides
             if name in self.registry:
@@ -168,8 +167,15 @@ class DependencyManager:
             hints         = get_type_hints(func)
             rtype         = return_type or hints.get('return', None)
             signature     = inspect.signature(func)
+
+            # auto determine params
+            if params == 'auto':
+                params_dict = {k: getattr(param_source, k) for k in signature.parameters if hasattr(param_source, k)}
+            else:
+                params_dict = params or {}
+
             if strict_param_check:
-                invalid_keys = set(params) - set(signature.parameters)
+                invalid_keys = set(params_dict) - set(signature.parameters)
                 if invalid_keys:
                     raise TypeError(f"{name}: Unrecognized config keys: {invalid_keys}")
 
@@ -182,7 +188,7 @@ class DependencyManager:
                 "deserializer": deserializer,
                 "param_names":  set(signature.parameters),
                 "requires":     requires if requires is not None else requires_list,
-                "params":       params,
+                "params":       params_dict,
             }
 
             @wraps(func)
