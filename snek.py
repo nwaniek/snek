@@ -31,7 +31,7 @@ import inspect
 import hashlib
 from concurrent.futures import ThreadPoolExecutor, Future
 
-__version__ = '0.1.3'
+__version__ = '0.1.4'
 
 try:
     import orjson
@@ -249,7 +249,7 @@ class DependencyManager:
             result = node.deserializer(node.name, node.unique_id)
             if result is not None:
                 if verbose:
-                    print(f"Loaded {node.name} from cache")
+                    print(f"Loaded {node.name} from cache using serializer")
                 self.cache[node.unique_id] = result
                 return result
 
@@ -258,10 +258,14 @@ class DependencyManager:
 
     def resolve(self, node: Node,  use_cache: bool = False, verbose: bool = False) -> Any:
         if result := self._retrieve_from_cache(node, use_cache, verbose):
+            if verbose:
+                print(f"Resolve: using cached {node.name}.")
             return result
 
         resolved_deps = []
         for dep in node.dependencies:
+            if verbose:
+                print(f"Resolving dependency: {dep.name}")
             if dep.is_file:
                 resolved_deps.append(dep.fpath)
             else:
