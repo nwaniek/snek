@@ -31,7 +31,7 @@ import inspect
 import hashlib
 from concurrent.futures import ThreadPoolExecutor, Future
 
-__version__ = '0.1.6'
+__version__ = '0.1.7'
 
 try:
     import orjson
@@ -255,41 +255,41 @@ class DependencyManager:
             self.nodes[identifier] = node
         return node
 
-    def _retrieve_from_cache(self, node, use_cache:bool, verbose:bool):
+    def _retrieve_from_cache(self, node, use_cache:bool, verbose:bool, indent: str):
         if node.unique_id in self.cache:
             if verbose:
-                print(f"Resolve: Using memory-cached '{node.name} ({node.unique_id})'")
+                print(f"{indent}Resolve: Using memory-cached '{node.name} ({node.unique_id})'")
             return self.cache[node.unique_id]
 
         if use_cache and node.cacheable and node.deserializer:
             result = node.deserializer(node.name, node.unique_id)
             if result is not None:
                 if verbose:
-                    print(f"Resolve: Loaded '{node.name} ({node.unique_id})' from cache using serializer")
+                    print(f"{indent}Resolve: Loaded '{node.name} ({node.unique_id})' from cache using serializer")
                 self.cache[node.unique_id] = result
                 return result
 
         return None
 
 
-    def resolve(self, node: Node, use_cache: bool = False, verbose: bool = False) -> Any:
-        if result := self._retrieve_from_cache(node, use_cache, verbose):
+    def resolve(self, node: Node, use_cache: bool = False, verbose: bool = False, indent: str = '') -> Any:
+        if result := self._retrieve_from_cache(node, use_cache, verbose, indent):
             return result
 
         resolved_deps = []
         for dep in node.dependencies:
             if verbose:
-                print(f"Resolving dependency '{dep.name} ({dep.unique_id})'")
+                print(f"{indent}Resolving dependency '{dep.name} ({dep.unique_id})'")
             if dep.is_file:
                 resolved_deps.append(dep.fpath)
             else:
-                resolved_deps.append(self.resolve(dep, use_cache, verbose))
+                resolved_deps.append(self.resolve(dep, use_cache, verbose, indent + '  '))
 
         if not node.func:
             raise RuntimeError(f"No Callable for node '{node.name} ({node.unique_id})'")
 
         if verbose:
-            print(f"Resolve: running '{node.name} ({node.unique_id})'.")
+            print(f"{indent}Resolve: running '{node.name} ({node.unique_id})'.")
         result = _run_task(node.func, resolved_deps, node.params.copy())
         self.cache[node.unique_id] = result
         if use_cache and node.cacheable and node.serializer:
