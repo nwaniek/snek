@@ -1,14 +1,44 @@
 #!/usr/bin/env python
+#
+# MIT License
+#
+# Copyright (c) 2025 Nicolai Waniek <n@rochus.net>
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
 
-__version__ = "0.1.1"
+__version__ = "0.1.6"
 
+import sys
 import configparser
 import argparse
 import types
+import copy
 from pathlib import Path
-from dataclasses import fields, is_dataclass, MISSING, asdict
-from typing import TypeVar, Any, Type, List, Literal, Union, Tuple, get_origin, get_args
-from types import UnionType
+from dataclasses import fields, is_dataclass, MISSING, Field
+from typing import TypeVar, Any, Type, List, Literal, Union, Tuple, get_origin, get_args, Callable
+
+if sys.version_info < (3, 10):
+    UnionType = None
+else:
+    from types import UnionType
+
 
 import hashlib
 try:
@@ -23,9 +53,6 @@ except ImportError:
 import numpy as np
 
 
-T = TypeVar('T')
-
-
 def make_json_serializable(obj):
     if isinstance(obj, Path):
         return str(obj)
@@ -38,12 +65,96 @@ def make_json_serializable(obj):
     else:
         return obj
 
-def dataclass_to_hash(obj: object, method: str = "sha1") -> str:
+
+T = TypeVar('T')
+
+_FIELDS = '__dataclass_fields__'
+
+# Define missing types for compatibility
+if sys.version_info < (3, 10):
+    NoneType = type(None)
+    EllipsisType = type(Ellipsis)
+    NotImplementedType = type(NotImplemented)
+else:
+    NoneType = types.NoneType
+    EllipsisType = types.EllipsisType
+    NotImplementedType = types.NotImplementedType
+
+_ATOMIC_TYPES = frozenset({
+    # Common JSON Serializable types
+    NoneType,
+    bool,
+    int,
+    float,
+    str,
+    # Other common types
+    complex,
+    bytes,
+    # Other types that are also unaffected by deepcopy
+    EllipsisType,
+    NotImplementedType,
+    types.CodeType,
+    types.BuiltinFunctionType,
+    types.FunctionType,
+    type,
+    range,
+    property,
+})
+
+
+def __asdict(obj: Any, field_filter: Callable[[Field], bool]) -> Any:
+    obj_type = type(obj)
+
+    if obj_type in _ATOMIC_TYPES:
+        return obj
+
+    elif is_dataclass(obj) or hasattr(obj_type, _FIELDS):
+        return {
+                f.name: __asdict(getattr(obj, f.name), field_filter)
+                for f in fields(obj)
+                if field_filter(f)
+        }
+
+    elif obj_type is list:
+        return [__asdict(v, field_filter) for v in obj]
+
+    elif obj_type is dict:
+        return {__asdict(k, field_filter): __asdict(v, field_filter) for k, v in obj.items()}
+
+    elif obj_type is tuple:
+        return tuple([__asdict(v, field_filter) for v in obj])
+
+    elif issubclass(obj_type, tuple):
+        # named tuple?
+        if hasattr(obj, '_fields'):
+            return obj_type(*[__asdict(v, field_filter) for v in obj])
+        else:
+            return obj_type(__asdict(v, field_filter) for v in obj)
+
+    elif issubclass(obj_type, dict):
+        if hasattr(obj_type, 'default_factory'):
+            result = obj_type(obj.default_factory)
+            for k, v in obj.items():
+                result[__asdict(k, field_filter)] = __asdict(v, field_filter)
+            return result
+        return obj_type((__asdict(k, field_filter), __asdict(v, field_filter))
+                        for k, v in obj.items())
+
+    elif issubclass(obj_type, list):
+        # Assume we can create an object of this type by passing in a
+        # generator
+        return obj_type(__asdict(v, field_filter) for v in obj)
+
+    else:
+        return copy.deepcopy(obj)
+
+
+def dataclass_to_hash(obj: object, method: str = "sha1", field_filter: Callable[[Field], bool] = lambda _: True) -> str:
     if not is_dataclass(obj):
         raise TypeError("compute_hash can only be used with dataclass instances")
 
     # Convert to a serializable dictionary
-    config_dict = asdict(obj)
+    config_dict = __asdict(obj, field_filter)
     config_dict = make_json_serializable(config_dict)
 
     # Convert to a JSON string with sorted keys for consistency
@@ -72,6 +183,12 @@ def dataclass_to_npz(instance: Any, filename: Path):
 
     for field in fields(instance):
         value = getattr(instance, field.name)
+
+        if value is None:
+            data_dict[f"{field.name}_is_none"] = True
+            continue
+
+        data_dict[f"{field.name}_is_none"] = False
 
         if isinstance(value, list) and all(isinstance(x, np.ndarray) for x in value):
             # Handle list of NumPy arrays
@@ -113,6 +230,10 @@ def npz_to_dataclass(cls: Type[T], filename: Path) -> T:
     init_args = {}
 
     for field in fields(cls):
+        if npzfile.get(f"{field.name}_is_none", False):
+            init_args[field.name] = None
+            continue
+
         if f"{field.name}_len" in npzfile:
             # Load list of NumPy arrays
             length = int(npzfile[f"{field.name}_len"])
@@ -130,21 +251,44 @@ def npz_to_dataclass(cls: Type[T], filename: Path) -> T:
     return cls(**init_args)
 
 
+def try_cast_value(value: str, to_type) -> tuple[Any, bool]:
+    try:
+        if to_type == bool:
+            return value.lower() in ("1", "true", "yes", "on"), True
+        if to_type == int:
+            return int(value), True
+        if to_type == float:
+            return float(value), True
+        if to_type == str:
+            return value, True
+        if to_type is type(None):
+            return None, value.lower() in ("none", "", "null")
+    except Exception:
+        return None, False
+
+    return None, False
+
+
 def cast_value(value: str, to_type):
     origin = get_origin(to_type)
     args = get_args(to_type)
 
-    if to_type == bool:
-        return value.lower() in ("1", "true", "yes", "on")
-    if to_type == int:
-        return int(value)
-    if to_type == float:
-        return float(value)
-    if to_type == str:
-        return value
+    if origin is Union or (UnionType is not None and origin is UnionType):
+        for arg in args:
+            casted, success = try_cast_value(value, arg)
+            if success:
+                return casted
+        raise ValueError(f"Cannot cast '{value}' to any type in {to_type}")
+
     if origin in (list, List):
-        return [cast_value(v.strip(), args[0]) for v in value.split(",")]
-    return value
+        inner_type = args[0] if args else str
+        return [cast_value(v.strip(), inner_type) for v in value.split(",")]
+
+    casted, success = try_cast_value(value, to_type)
+    if success:
+        return casted
+
+    raise ValueError(f"Cannot cast '{value}' to {to_type}")
 
 
 def ini_to_dataclass(ini: configparser.ConfigParser, cls, section=None):
@@ -340,7 +484,6 @@ def dataclass_to_parser(cls, parser, prefix=""):
             else:
                 selected_type = choose_union_type(non_none_args)
                 parser.add_argument(arg_name, type=selected_type, default=default, required=False)
-
 
         else:
             # default = field.default
