@@ -23,7 +23,7 @@
 # SOFTWARE.
 #
 
-from typing import List, Dict, Optional, Union, Literal, Callable, Any, get_type_hints
+from typing import List, Dict, Optional, Literal, Callable, Any, get_type_hints
 from pathlib import Path
 from dataclasses import dataclass
 from functools import wraps
@@ -31,7 +31,7 @@ import inspect
 import hashlib
 from concurrent.futures import ThreadPoolExecutor, Future
 
-__version__ = '0.1.8'
+__version__ = '0.1.9'
 
 try:
     import orjson
@@ -69,7 +69,7 @@ class Node:
     return_type  : Any
     serializer   : Optional[Callable[[Any, str, str], None]]
     deserializer : Optional[Callable[[str, str], Any]]
-    fpath        : Optional[Path | None]
+    fpath        : Optional[Path]
     is_file      : bool
 
 
@@ -350,7 +350,7 @@ class DependencyManager:
     def resolve_parallel(self, node: Node, use_cache: bool = True, verbose: bool = False):
         dirty_nodes = self.find_dirty_nodes_toposorted(node, use_cache)
         if not dirty_nodes:
-            if obj := self._retrieve_from_cache(node, use_cache, verbose):
+            if obj := self._retrieve_from_cache(node, use_cache, verbose, ""):
                 return obj
             dirty_nodes.append(node)
         dirty_ids = {n.unique_id for n in dirty_nodes}
@@ -373,7 +373,7 @@ class DependencyManager:
                     if dep.is_file:
                         resolved_deps.append(dep.fpath)
                     elif dep.unique_id not in dirty_ids:
-                        obj = self._retrieve_from_cache(dep, use_cache, verbose)
+                        obj = self._retrieve_from_cache(dep, use_cache, verbose, "")
                         resolved_deps.append(obj)
                     else:
                         resolved_deps.append(futures[dep.unique_id])
