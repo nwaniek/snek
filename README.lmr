@@ -3,8 +3,21 @@
 !img
 !src sneklogo.png
 
-`snek` is a minimalistic and hackable dependency manager that allows to
-specify targets in spirit similar to Makefiles, but directly within python.
+`snek.py` is a dependency manager that allows to build declarative data science
+or other processing pipelines. It's goal is to be as minimal as possible to
+allow rapid prototyping and to not be intrusive, while being flexible enough to
+build large and customizable pipelines that can be configured depending on
+ad-hoc needs. In `snek.py` (or simply `snek`), targets are specified in spirit
+similar to Makefiles, but directly within python. 
+
+Adhering to the goal of minimalism, serialization/deserialization for caching is
+not part of `snek.py` itself. Rather, `snek.py` calls particular functions if
+they are part of the return type of the steps of a pipeline or functions that
+can be specified when declaring a particular target. Hence, users can implement
+their own favorite methods and are not constrained by `snek.py`. Several
+examples for serialization are provided in the demos that ship with `snek.py`,
+including how to save dataclasses to numpy files and use an sqlite database as
+caching backend.
 
 
 ## Use Cases
@@ -15,7 +28,7 @@ artifacts, that are then later recombined in particular manners. Essentially,
 such pipelines can be described as a computational graph, and intermediate
 results might have to be cached to avoid expensive recomputation.
 
-As an example of snek's behavior, let's have a look at the first run of
+As an example of `snek`'s behavior, let's have a look at the first run of
 [demo.py]@(file::demo/demo.py) with caching enabled, meaning it'll store
 intermediate results, and verbose output:
 
@@ -31,8 +44,7 @@ intermediate results, and verbose output:
     BResult(value='Result B following Result A (101) C Result')
 
 
-Subsequent runs of demo.py with caching enabled and verbose output will then
-only look as follows
+Subsequent runs of demo.py will then only look as follows
 
 :: sh
     $ ./demo.py
@@ -45,7 +57,7 @@ only look as follows
 Meaning instead of computing all intermediate artifacts required to generate B
 (which are A and C in the example presented in [demo.py]@(file::demo.py)), it'll
 load B from some cache. You can find more details about the `cache` and what
-snek really provides below.
+`snek` really provides below.
 
 
 ## Usage
@@ -64,8 +76,10 @@ Let's dive right in:
     if __name__ == "__main__":
         dm.make('awesomesauce')
 
-The above code illustrates how to use snek to make a particular target called
-`asesomsauce`. You can find this demo in file [demo2.py]@(file::demo/demo2.py)
+The above code illustrates how to use `snek` to make a particular target called
+`asesomsauce`. In this example, the name of the target is automatically inferred
+from the function name.  You can find this demo in file
+[demo2.py]@(file::demo/demo2.py)
 
 Of course this might not be very exciting, but once we introduce other targets
 that, themselves, need some targets, things get more interesting:
@@ -87,7 +101,7 @@ that, themselves, need some targets, things get more interesting:
         dm.make('printstr')
 
 
-Now we call `dm.make` on the printstr function. awesomesauce itself doesn't
+Now we call `dm.make` on the printstr target. awesomesauce itself doesn't
 directly print any more, but returns a string. This string is the result of the
 target `awesomesauce`. Then, we define a target `printstr`, which requires
 as input `awesomesauce` -- inferred by the name of the argument to `printstr` --
@@ -99,8 +113,8 @@ target name for what a function provides. Examples of changing the target name
 via the `provides` argument to `dm.target` can be found further below.
 
 You probably already see where this is going, but maybe another, longer, example
-helps make things clear and introduces changing the name of what a function
-provides:
+helps make things clear and introduces changing the name of the target that a
+function provides:
 
 :: python
     #!/usr/bin/env python
@@ -147,30 +161,30 @@ using the `provides` argument to `dm.target`, because the functions have
 different names than what they produce). While A and C can stand independently,
 B requires A and B. Of course, this can be also expressed with simply chaining
 some functions, but often -- especially in large data science pipelines -- this
-gets cumbersome and its easier to thing in terms of artifacts that get
-generated, and which are the input for other functions.  Also maybe some
-configuration parameters for a pipeline influence how intermediate artifacts are
-generated or not. The code for the example above is located in file
-[demo4.py]@(file::demo/demo4.py).
+gets cumbersome and its easier to think in terms of (intermediate) artifacts
+that get generated, and then treat them as inputs for other functions. Also
+maybe some configuration parameters for a pipeline influence how intermediate
+artifacts are generated or not. The code for the example above is located in
+file [demo4.py]@(file::demo/demo4.py).
 
 
 ## Cache
 
 At this point, you might wonder what the `cacheable=False` argument to
 `dm.target` is. Very often in data science pipelines, we create intermediate
-artifacts which are expensive to compute - let the cost be time or other
+artifacts which are expensive to compute - let the cost be time, space, or other
 resources. It'd be nice avoid recomputation and simply cache them.
 
-This is where the `cacheable` flag comes in. By default, all targets in snek's
+This is where the `cacheable` flag comes in. By default, all targets in `snek`'s
 `DependencyManager` are assumed to be cacheable (because this is what I built it
-for). For this to work, we need to provide some information to snek so that it
-knows how to serialize and deserialize objects. In fact, snek doesn't really
+for). For this to work, we need to provide some information to `snek` so that it
+knows how to serialize and deserialize objects. In fact, `snek` doesn't really
 care how you want to cache the intermediate objects, it simply invokes some
 functions when it happens.
 
-By default, snek calls function `serialize` to cache an (intermediate) object --
+By default, `snek` calls function `serialize` to cache an (intermediate) object --
 or more precisely the result of a target -- and `deserialize` to load it from
-some cache on the disk. Note that on top of that, snek's `DependencyManager`
+some cache on the disk. Note that on top of that, `snek`'s `DependencyManager`
 also uses an in-memory cache to avoid loading things that were already
 deserialized. Anyway, let's get back to the caching mechanism, illustrated with
 the following example:
@@ -195,9 +209,9 @@ the following example:
 
 In the code above, which is part of [demo.py]@(file::demo/demo.py), we first
 define some generic class that has a function `serialize` and a class function
-`deserialize`. snek's `DependencyManager` will look for these two methods for
+`deserialize`. `snek`'s `DependencyManager` will look for these two methods for
 any result of a target. The type of the target will be inferred from type hints,
-but can also be specified as an argument to `dm.target`. Internally, snek will
+but can also be specified as an argument to `dm.target`. Internally, `snek` will
 then try to call these functions to load/store the result of a target. In the
 example above, I made use of two small helper functions `dataclass_to_npz` and
 `npz_to_dataclass` that I developed to turn, as their names imply, simple
@@ -206,21 +220,21 @@ you want to read more about these functions and how they work, have a look at
 [dcutils]@(file::demo/dcutils.py).
 
 In the code above, you also see that `snek` doesn't really care about how your
-caching mechanism should work. It merely tells you to seriealize or deserialize
+caching mechanism should work. It merely tells you to serialize or deserialize
 something based on their target name as well as the unique id that was computed
 for that specific target. Which leads us to the next point.
 
 
 ### Unique IDs
 
-One of the things you might notice above is the usage of a `unique_id`. snek was
+One of the things you might notice above is the usage of a `unique_id`. `snek` was
 designed with the knowledge that artifacts that are generated in any data
 science or Makefile-like pipeline usually depend on some configuration options,
 files, as well as their parents. For instance, if a pipeline has targets A, B and C,
 then each of them might require some configuration. Let's say A and C are
 required to make B, and B has a change in its configuration, then only B should
 be re-build. However, if C has a change in configuration, then both C and B
-would have to be rebuilt, because C is a dependency of B. To handle this, snek
+would have to be rebuilt, because C is a dependency of B. To handle this, `snek`
 expects you to tell it during calls to `dm.target`, which parameters should be
 considered for this, as in the following example
 
@@ -234,6 +248,36 @@ In the code above, taken from [demo.py]@(file::demo/demo.py), we specify that a
 target `compute_B`, which provides `B`, depends on two other things `A` and `C`.
 Moreover, `compute_B` depends on some extra parameters which determine what is
 computed, and we specify this using the `params` argument to `dm.target`.
+
+
+If you have many parameters for a function, the above can become verbose to
+write. For instance, take the following example:
+
+:: python
+    @dm.target(provides='B', requires=['A', 'C'], params={'param1': config.param1, 'param2': config.param2, 'param3': config.param3})
+    def compute_B(A, C, param1, param2, param3) -> BResult:
+        print("called compute_B()")
+        return BResult("Result B following " + A.value + " " + C.value)
+
+
+While this is obviously contrived, and the params are not used at all, it
+highlights an issue: repetition. To avoid having to repeat parameter names and
+let `snek` automatically figure out what to pass in, you can do the following:
+
+:: python
+    @dm.target(provides='B', requires=['A', 'C'], params='auto', param_source=config)
+    def compute_B(A, C, param1, param2, param3) -> BResult:
+        print("called compute_B()")
+        return BResult("Result B following " + A.value + " " + C.value)
+
+
+When using `params='auto'` in combination with `param_source`, then `snek` will
+try to first map all "required" arguments to the function. Subsequently, it
+will try to fetch all remaining arguments from `param_source`. Note that for
+this to work, the names need to match, i.e. if `param1` is not an element of
+`config`, the above might fail.
+
+
 
 ## File Dependencies
 
@@ -270,12 +314,32 @@ tree given by the returned `node`. I invite you to have a look at
 [snek.py]@(file::snek.py) what information a node contains. 
 
 
-## Hackability
+## Parallel Builds
 
-With about 200 lines of very simple python code, `snek` is as short as it gets.
-You probably don't even want to install it as a package and just throw
-[snek.py]@(file::snek.py) into your project source folder, extend it, change it
-around, automate other things.
+`snek` has some preliminary capabilities for building targets in parallel that
+can be invoked using `make_parallel`. Internally, `snek` will then sort the
+compute graph topologically and build all targets that can be built
+independently in parallel using python's `ThreadPoolExecutor`. Note that using
+`ThreadPoolExecutor` is not always advisable, and you should carefully consider
+if it applies in your case or not.
+
+
+## Installation and Hackability
+
+One of the main goals of `snek` is to be as minimal as possible. In fact, with <
+400 lines of python code, snek is probably as short as it gets. You might not
+even want to install it as a package and just throw [snek.py]@(file::snek.py)
+into your project source folder, extend it, change it around, automate other
+things. 
+
+If you want to install it properly, say into a virtual environment, then you
+can use pip:
+
+:: sh
+	$ # activate the desired virtual environment
+	$ git clone https://github.com/nwaniek/snek.git
+	$ cd snek
+	$ pip install .
 
 
 ## Contributing
