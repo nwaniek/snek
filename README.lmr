@@ -317,8 +317,8 @@ tree given by the returned `node`. I invite you to have a look at
 ## Parallel Builds
 
 `snek` has some preliminary capabilities for building targets in parallel that
-can be invoked using `make_parallel`. Internally, `snek` will then sort the
-compute graph topologically and build all targets that can be built
+can be invoked using `make(..., parallel=True)`. Internally, `snek` will then
+sort the compute graph topologically and build all targets that can be built
 independently in parallel using python's `ThreadPoolExecutor`. Note that using
 `ThreadPoolExecutor` is not always advisable, and you should carefully consider
 if it applies in your case or not.
