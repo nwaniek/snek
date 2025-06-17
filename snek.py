@@ -31,7 +31,7 @@ import inspect
 import hashlib
 from concurrent.futures import ThreadPoolExecutor, Future
 
-__version__ = '0.2.0'
+__version__ = '0.2.1'
 
 try:
     import orjson
@@ -247,10 +247,11 @@ class DependencyManager:
             "params":        params,
             "parent_hashes": parent_hashes,
         }
-        if is_dataclass(return_type) or hasattr(return_type, '__dataclass_fields__'):
-            hash_input["return_type"] = hash_dataclass_structure(return_type)
-        elif hasattr(return_type, "structural_hash") and callable(getattr(return_type, "structural_hash")):
+        if hasattr(return_type, "structural_hash") and callable(getattr(return_type, "structural_hash")):
             hash_input["return_type"] = return_type.structural_hash()
+        elif is_dataclass(return_type) or hasattr(return_type, '__dataclass_fields__'):
+            hash_input["return_type"] = hash_dataclass_structure(return_type)
+
 
         unique_id = hash_obj(hash_input)
         cache_path = self.cache_dir / (unique_id + '.npz')
