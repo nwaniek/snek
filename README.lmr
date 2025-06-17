@@ -283,10 +283,10 @@ to specify targets with as little effort as
 
 :: python
 
-	@dm.target(params='auto', param_source=config)
-	def kerneldensityestimate(prefiltered, sidechannelinfo, param1, param2, param3) -> KDEResult:
-		# ...
-		return KDEResult(some_values)
+    @dm.target(params='auto', param_source=config)
+    def kerneldensityestimate(prefiltered, sidechannelinfo, param1, param2, param3) -> KDEResult:
+        # ...
+        return KDEResult(some_values)
 
 Which will register a target with name `kerneldensityestimate`, that requires as
 inputs `prefiltered` and `sidechannelinfo`, and takes additional parameters from
@@ -304,14 +304,14 @@ information will be taken into account as well (or the result of
 example:
 
 :: python
-	class CustomTensor:
-		shape: tuple
-		dtype: str
-		# ...
+    class CustomTensor:
+        shape: tuple
+        dtype: str
+        # ...
 
-		@classmethod
-		def structural_hash(cls):
-			return hash_obj({"type": "CustomTensor", "shape": cls.default_shape, "dtype": cls.default_dtype})
+        @classmethod
+        def structural_hash(cls):
+            return hash_obj({"type": "CustomTensor", "shape": cls.default_shape, "dtype": cls.default_dtype})
 
 In the example above, `hash_obj` is a function that ships with `snek.py`.
 
@@ -384,10 +384,10 @@ If you want to install it properly, say into a virtual environment, then you
 can use pip:
 
 :: sh
-	$ # activate the desired virtual environment
-	$ git clone https://github.com/nwaniek/snek.git
-	$ cd snek
-	$ pip install .
+    $ # activate the desired virtual environment
+    $ git clone https://github.com/nwaniek/snek.git
+    $ cd snek
+    $ pip install .
 
 
 ## Contributing
