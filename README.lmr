@@ -277,6 +277,54 @@ will try to fetch all remaining arguments from `param_source`. Note that for
 this to work, the names need to match, i.e. if `param1` is not an element of
 `config`, the above might fail.
 
+Combining auto with automatic deduction of target name and dependencies allows
+to specify targets with as little effort as
+
+
+:: python
+
+	@dm.target(params='auto', param_source=config)
+	def kerneldensityestimate(prefiltered, sidechannelinfo, param1, param2, param3) -> KDEResult:
+		# ...
+		return KDEResult(some_values)
+
+Which will register a target with name `kerneldensityestimate`, that requires as
+inputs `prefiltered` and `sidechannelinfo`, and takes additional parameters from
+`config`. Thus, not much overhead.
+
+
+### A note on Unique IDs and return types
+
+The unique id that was mentioned above is not only based on the parameters that
+go into a target, the parent unique ids, but also on the structure of the return
+type if it is available. That is, if the return type of a target function
+provides a class-method `structural_hash` or is a dataclass, then the structural
+information will be taken into account as well (or the result of
+`structural_hash`, which must be something hashable, like a string). Here's an
+example:
+
+:: python
+	class CustomTensor:
+		shape: tuple
+		dtype: str
+		# ...
+
+		@classmethod
+		def structural_hash(cls):
+			return hash_obj({"type": "CustomTensor", "shape": cls.default_shape, "dtype": cls.default_dtype})
+
+In the example above, `hash_obj` is a function that ships with `snek.py`.
+
+The reason to include the structure of the return type is that `snek.py` was
+developed with rapid prototyping in mind. In this scenario, the return types
+might not yet be fixed, and changing the structure of a return type should
+require recomputation of the corresponding target.
+
+Using a class method `structural_hash` provides flexibility and transparency.
+When this class function is not provided, `snek` will extract relevant
+information only if the return type is a dataclass, in which case the hash is
+computed over the name of the fields and their type.
+
 
 
 ## File Dependencies
