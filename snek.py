@@ -25,13 +25,13 @@
 
 from typing import List, Dict, Optional, Literal, Callable, Any, get_type_hints
 from pathlib import Path
-from dataclasses import dataclass
+from dataclasses import dataclass, is_dataclass
 from functools import wraps
 import inspect
 import hashlib
 from concurrent.futures import ThreadPoolExecutor, Future
 
-__version__ = '0.1.9'
+__version__ = '0.2.0'
 
 try:
     import orjson
@@ -56,6 +56,13 @@ def hash_obj(obj: Any) -> str:
         return hash_file(obj)
     obj_json = __dumps(obj)
     return hashlib.sha1(obj_json.encode()).hexdigest()
+
+
+def hash_dataclass_structure(cls):
+    """Generate a hash from the structure of a dataclass"""
+    return {
+        k: str(v.type) for k, v in cls.__dataclass_fields__.items()
+    }
 
 
 @dataclass
@@ -240,6 +247,12 @@ class DependencyManager:
             "params":        params,
             "parent_hashes": parent_hashes,
         }
+        if is_dataclass(return_type) or hasattr(return_type, '__dataclass_fields__'):
+            hash_input["return_type"] = hash_dataclass_structure(return_type)
+            print(hash_input['return_type'])
+        elif hasattr(return_type, "structural_hash") and callable(getattr(return_type, "structural_hash")):
+            hash_input["return_type"] = return_type.structural_hash()
+
         unique_id = hash_obj(hash_input)
         cache_path = self.cache_dir / (unique_id + '.npz')
 
